@@ -6,7 +6,7 @@ $ZIP_FILE = "$env:TEMP\ota_files.zip"
 $DEST_DIR = "C:\Project\aimlware\viaverde\exe"
 $BACKUP_DIR = "${DEST_DIR}_backup"
 $CONFIG_FILE = "C:\Project\aimlware\viaverde\config\config.json"
-$UF2_FILE = "C:\Project\aimlware\viaverde\exe\rp2040.uf2"
+$UF2_FILE = "C:\Project\aimlware\viaverde\exe\Blink_bootrom.ino.uf2"
 $TIMEOUT = 30
 
 # Function Definitions
