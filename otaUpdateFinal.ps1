@@ -6,7 +6,8 @@ $ZIP_FILE = "$env:TEMP\ota_files.zip"
 $DEST_DIR = "C:\Project\aimlware\viaverde\exe"
 $BACKUP_DIR = "${DEST_DIR}_backup"
 $CONFIG_FILE = "C:\Project\aimlware\viaverde\config\config.json"
-$UF2_FILE = "C:\Project\aimlware\viaverde\exe\Blink_bootrom.ino.uf2"
+$UF2_FILE = "C:\Project\intern\otaUpdate\Blink_bootrom.ino.uf2"
+$rp2040DriveLetter = "D:"
 $TIMEOUT = 30
 
 # Function Definitions
@@ -221,6 +222,42 @@ if (-not $?) {
 Remove-Item -Path $TEMP_DIR -Recurse -Force
 if (Test-Path $ZIP_FILE) {
     Remove-Item -Force $ZIP_FILE
+}
+
+# Detect the COM port for RP2040
+$deviceDescription = "USB Serial Device"
+
+# Use Get-WMIObject to find the COM port by matching the device description
+$comPort = Get-WmiObject Win32_SerialPort | Where-Object { $_.Description -like "*$deviceDescription*" } | Select-Object -ExpandProperty DeviceID
+# Check if the COM port was found
+if (-not $comPort) {
+    Write-Host "RP2040 COM port not found. Exiting."
+    exit 1
+}
+Write-Host "RP2040 detected on $comPort."
+
+# Run the mode command to set baud rate directly from PowerShell
+cmd /c "mode ${comPort}: baud=1200 parity=n data=8 stop=1"
+
+Write-Host "Waiting for RP2040 drive to be detected..."
+
+do {
+    Start-Sleep -Seconds 1
+} until (Test-Path "$rp2040DriveLetter\")
+
+Write-Host "RP2040 drive detected at $rp2040DriveLetter."
+
+# Copy the UF2 file to the RP2040 drive
+try {
+    Copy-Item -Path $UF2_FILE -Destination "$rp2040DriveLetter\"
+    Write-Host "Copied UF2 file to $rp2040DriveLetter"
+} catch {
+    if (-not $UF2_FILE) {
+        Write-Host "The provided UF2 file path is incorrect"
+        exit 1
+    }
+    Write-Host "Failed to copy UF2 file. Error: $_"
+    exit 1
 }
 
 # Updating config message and restarting services
