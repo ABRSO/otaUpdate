@@ -19,7 +19,7 @@ echo RP2040 detected on %comPort%.
 Mode %comPort%: Baud=1200 Parity=N Data=8 Stop=1
 
 REM Step 2: Configure the drive letter and UF2 file path
-SET uf2FilePath="C:\Users\abhir\AppData\Local\Temp\arduino\sketches\A08043066BD0B82CA3FC457D93BE99ED\Blink_bootrom.ino.uf2"
+SET uf2FilePath="C:\Project\aimlware\viaverde\exe\Blink_bootrom.ino.uf2"
 SET rp2040DriveLetter=D:
 
 REM Step 3: Wait for the RP2040 drive to be detected
