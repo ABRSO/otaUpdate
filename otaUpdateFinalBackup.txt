@@ -18,13 +18,13 @@ function ota_status_update {
         [string]$deviceid,
         [string]$ver
     )
-try {
-    $body = @{ message = $message }
-    Invoke-RestMethod -Uri "https://brokerapi.viaverde.app/api/ota/update/$deviceid/version/$ver" `
-        -Body (ConvertTo-Json $body) `
-        -TimeoutSec $TIMEOUT `
-        -Headers @{ "accept" = "application/json"; "Content-Type" = "application/json" } `
-        -Method Patch
+    try {
+        $body = @{ message = $message }
+        Invoke-RestMethod -Uri "https://brokerapi.viaverde.app/api/ota/update/$deviceid/version/$ver" `
+            -Body (ConvertTo-Json $body) `
+            -TimeoutSec $TIMEOUT `
+            -Headers @{ "accept" = "application/json"; "Content-Type" = "application/json" } `
+            -Method Patch
     }
     catch {
         Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__ 
@@ -224,40 +224,47 @@ if (Test-Path $ZIP_FILE) {
     Remove-Item -Force $ZIP_FILE
 }
 
-# Detect the COM port for RP2040
-$deviceDescription = "USB Serial Device"
+if (Test-Path $UF2_FILE) {
+    # Detect the COM port for RP2040
+    $deviceDescription = "USB Serial Device"
 
-# Use Get-WMIObject to find the COM port by matching the device description
-$comPort = Get-WmiObject Win32_SerialPort | Where-Object { $_.Description -like "*$deviceDescription*" } | Select-Object -ExpandProperty DeviceID
-# Check if the COM port was found
-if (-not $comPort) {
-    Write-Host "RP2040 COM port not found. Exiting."
-    exit 1
-}
-Write-Host "RP2040 detected on $comPort."
-
-# Run the mode command to set baud rate directly from PowerShell
-cmd /c "mode ${comPort}: baud=1200 parity=n data=8 stop=1"
-
-Write-Host "Waiting for RP2040 drive to be detected..."
-
-do {
-    Start-Sleep -Seconds 1
-} until (Test-Path "$rp2040DriveLetter\")
-
-Write-Host "RP2040 drive detected at $rp2040DriveLetter."
-
-# Copy the UF2 file to the RP2040 drive
-try {
-    Copy-Item -Path $UF2_FILE -Destination "$rp2040DriveLetter\"
-    Write-Host "Copied UF2 file to $rp2040DriveLetter"
-} catch {
-    if (-not $UF2_FILE) {
-        Write-Host "The provided UF2 file path is incorrect"
+    # Use Get-WMIObject to find the COM port by matching the device description
+    $comPort = Get-WmiObject Win32_SerialPort | Where-Object { $_.Description -like "*$deviceDescription*" } | Select-Object -ExpandProperty DeviceID
+    # Check if the COM port was found
+    if (-not $comPort) {
+        Write-Host "RP2040 COM port not found. Exiting."
         exit 1
     }
-    Write-Host "Failed to copy UF2 file. Error: $_"
-    exit 1
+    Write-Host "RP2040 detected on $comPort."
+
+    # Run the mode command to set baud rate directly from PowerShell
+    cmd /c "mode ${comPort}: baud=1200 parity=n data=8 stop=1"
+
+    Write-Host "Waiting for RP2040 drive to be detected..."
+
+    do {
+        Start-Sleep -Seconds 1
+    } until (Test-Path "$rp2040DriveLetter\")
+
+    Write-Host "RP2040 drive detected at $rp2040DriveLetter."
+
+    # Copy the UF2 file to the RP2040 drive
+    try {
+        Copy-Item -Path $UF2_FILE -Destination "$rp2040DriveLetter\"
+        Write-Host "Copied UF2 file to $rp2040DriveLetter"
+    }
+    catch {
+        if (-not $UF2_FILE) {
+            Write-Host "The provided UF2 file path is incorrect"
+            exit 1
+        }
+        Write-Host "Failed to copy UF2 file. Error: $_"
+        exit 1
+    }
+
+}
+else {
+    Write-Host "UF2 file not present at the specified path. Check file copy log to see if system received uf2 file"
 }
 
 # Updating config message and restarting services
