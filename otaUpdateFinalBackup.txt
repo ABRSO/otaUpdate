@@ -20,6 +20,7 @@ function ota_status_update {
     )
     try {
         $body = @{ message = $message }
+        # Invoke-RestMethod -Uri "https://$mqtt_host/api/ota/update/$deviceid/version/$ver" `
         Invoke-RestMethod -Uri "https://brokerapi.viaverde.app/api/ota/update/$deviceid/version/$ver" `
             -Body (ConvertTo-Json $body) `
             -TimeoutSec $TIMEOUT `
@@ -69,6 +70,7 @@ $deviceid = $config.deviceid
 $device_type = $config.device_type
 $batch_number = $config.batch_number
 $software_version = $config.software_version
+$mqtt_host = $config.mqtt_host
 
 # Check if variables are empty
 if (-not $deviceid) {
@@ -87,6 +89,10 @@ if (-not $software_version) {
     Write-Host "Failed to extract software_version from JSON file"
     exit 1
 }
+if (-not $mqtt_host) {
+    Write-Host "Failed to extract mqtt_host from JSON file"
+    exit 1
+}
 
 # Display the device parameters
 Write-Host "Device parameters:"
@@ -94,9 +100,11 @@ Write-Host "deviceid: $deviceid"
 Write-Host "device_type: $device_type"
 Write-Host "batch_number: $batch_number"
 Write-Host "software_version: $software_version"
+Write-Host "mqtt_host: $mqtt_host"
 
 # Form the API URL
 $API_URL = "https://brokerapi.viaverde.app/api/ota/$software_version/type/$device_type/batch/$batch_number/deviceid/$deviceid"
+# $API_URL = "https://$mqtt_host/api/ota/$software_version/type/$device_type/batch/$batch_number/deviceid/$deviceid"
 Write-Host "API_URL: $API_URL"
 
 # Send API Request and Process the Response
