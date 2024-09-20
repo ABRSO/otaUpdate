@@ -170,14 +170,14 @@ Write-Output "Stop-Service -Name "irrigation_controller" -Force"
 
 if (Test-Path $DEST_DIR) {
     # Backup the current directory
-    Move-Item -Path $DEST_DIR -Destination $BACKUP_DIR -Force
+    Copy-Item -Path $DEST_DIR -Destination $BACKUP_DIR -Force
     if (-not $?) {
         Write-Host "Failed to rename $DEST_DIR to $BACKUP_DIR"
         ota_status_update "Failed to rename $DEST_DIR to $BACKUP_DIR" $deviceid $software_version
         reload_and_restart_services
         exit 1
     }
-    New-Item -Path $DEST_DIR -ItemType Directory -Force
+    # New-Item -Path $DEST_DIR -ItemType Directory -Force
 }
 else {
     Write-Output "$DEST_DIR does not exist, creating new directory"
@@ -217,7 +217,6 @@ else {
 }
 
 # Set permissions of all files in DEST_DIR to -rwxrwxr-x
-Write-Host "dest: $DEST_DIR"
 icacls $DEST_DIR /grant "Everyone:(OI)(CI)F"
 if (-not $?) {
     Write-Output "Failed to set permissions on $DEST_DIR"
