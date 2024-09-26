@@ -3,11 +3,9 @@ $ErrorActionPreference = "Stop"
 
 # Define path variables
 $ZIP_FILE = "$env:TEMP\ota_files.zip"
-$DEST_DIR = "C:\Project\aimlware\viaverde\exe"
+$DEST_DIR = "C:\aimlware\viaverde\exe"
 $BACKUP_DIR = "${DEST_DIR}_backup"
-$CONFIG_FILE = "C:\Project\aimlware\viaverde\config\config.json"
-$UF2_FILE = "C:\Project\intern\otaUpdate\Blink_bootrom.ino.uf2"
-$rp2040DriveLetter = "D:"
+$CONFIG_FILE = "C:\aimlware\viaverde\config\config.json"
 $TIMEOUT = 30
 
 # Function Definitions
@@ -52,13 +50,7 @@ function ota_status_update {
 
 function reload_and_restart_services {
     Write-Host "Reloading system configuration and restarting services"
-    # Restart-Service -Name Spooler - check this one out
-    Write-Host Restart-Service -NoNewWindow -FilePath "health_check" -Force -Name "health_check"
-    Write-Host Restart-Service -NoNewWindow -FilePath "irrigation_controller" -Force -Name "irrigation_controller"
-    #Start-Process -NoNewWindow -FilePath "sc.exe" -ArgumentList "stop irrigation_controller"
-    #Start-Process -NoNewWindow -FilePath "sc.exe" -ArgumentList "start irrigation_controller"
-    #Start-Process -NoNewWindow -FilePath "sc.exe" -ArgumentList "stop health_check"
-    #Start-Process -NoNewWindow -FilePath "sc.exe" -ArgumentList "start health_check"
+    Restart-Service IrrigationController
 }
 
 # Load the JSON config file and parse it
@@ -149,7 +141,6 @@ Write-Output "ZIP_FILE: $ZIP_FILE"
 
 $TEMP_DIR = Join-Path $env:TEMP "ota_update_temp"
 New-Item -Path $TEMP_DIR -ItemType Directory -Force
-Write-Host "Temp: $TEMP_DIR"
 
 try {
     Expand-Archive -Path $ZIP_FILE -DestinationPath $TEMP_DIR -Force
@@ -165,8 +156,7 @@ catch {
 
 # Stop services before making the changes
 Write-Output "Stopping services"
-Write-Output "Stop-Service -Name "health_check" -Force"
-Write-Output "Stop-Service -Name "irrigation_controller" -Force"
+Stop-Service IrrigationController
 
 if (Test-Path $DEST_DIR) {
     # Backup the current directory
@@ -231,6 +221,12 @@ if (Test-Path $ZIP_FILE) {
     Remove-Item -Force $ZIP_FILE
 }
 
+# Check if there is any .uf2 file in the destination directory
+$uf2Files  = Get-ChildItem -Path $DEST_DIR -Filter "*.uf2"
+if ($uf2Files.Count -gt 0) {
+    $UF2_FILE = $uf2Files[0].FullName
+}
+
 if (Test-Path $UF2_FILE) {
     # Detect the COM port for RP2040
     $deviceDescription = "USB Serial Device"
@@ -240,6 +236,8 @@ if (Test-Path $UF2_FILE) {
     # Check if the COM port was found
     if (-not $comPort) {
         Write-Host "RP2040 COM port not found. Exiting."
+        ota_status_update "Failed to get RP2040 COM Port" $deviceid $software_version
+        reload_and_restart_services
         exit 1
     }
     Write-Host "RP2040 detected on $comPort."
@@ -249,9 +247,31 @@ if (Test-Path $UF2_FILE) {
 
     Write-Host "Waiting for RP2040 drive to be detected..."
 
-    do {
-        Start-Sleep -Seconds 1
-    } until (Test-Path "$rp2040DriveLetter\")
+    # Initialize retry variables
+    $rp2040DriveLetter = $null
+    $retryCount = 0
+    $maxRetries = 10
+    $delay = 2  # Delay in seconds
+
+    # Retry loop to check for the USB drive
+    while (-not $rp2040DriveLetter -and $retryCount -lt $maxRetries) {
+        Start-Sleep -Seconds $delay  # Wait for the USB drive to appear
+
+        # Detect the RP2040 USB drive by Volume Label
+        $rp2040DriveLetter = (Get-WmiObject Win32_LogicalDisk | Where-Object {
+            $_.VolumeName -eq "RPI-RP2"  # Use the correct volume label for RP2040
+        }).DeviceID
+
+        $retryCount++
+    }
+
+    # Check if the drive was detected
+    if (-not $rp2040DriveLetter) {
+        Write-Host "RP2040 USB drive not detected."
+        ota_status_update "Failed to detect RP2040 USB drive" $deviceid $software_version
+        reload_and_restart_services
+        exit 1
+    }
 
     Write-Host "RP2040 drive detected at $rp2040DriveLetter."
 
@@ -263,9 +283,13 @@ if (Test-Path $UF2_FILE) {
     catch {
         if (-not $UF2_FILE) {
             Write-Host "The provided UF2 file path is incorrect"
+            ota_status_update "The provided UF2 file path is incorrect" $deviceid $software_version
+            reload_and_restart_services
             exit 1
         }
         Write-Host "Failed to copy UF2 file. Error: $_"
+        ota_status_update "Failed to copy UF2 file. Error: $_" $deviceid $software_version
+        reload_and_restart_services
         exit 1
     }
 
@@ -277,8 +301,7 @@ else {
 # Updating config message and restarting services
 Write-Output "Updating config"
 Set-Location -Path $DEST_DIR
-Write-Host Start-Process -FilePath "irrigation_controller.exe" -ArgumentList "version" -NoNewWindow -Wait
-Set-Location "C:\Project\intern\otaUpdate\"
+Restart-Service IrrigationController
 
 # Send Response with OTA status
 $deviceid = $config.deviceid
