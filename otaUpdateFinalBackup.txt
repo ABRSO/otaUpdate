@@ -50,12 +50,19 @@ function ota_status_update {
 
 function reload_and_restart_services {
     Write-Host "Reloading system configuration and restarting services"
+    ((Get-Content $CONFIG_FILE) -join "`n") + "`n" | Set-Content -NoNewline $CONFIG_FILE
     Restart-Service IrrigationController
 }
 
 # Load the JSON config file and parse it
-$config = Get-Content $CONFIG_FILE | ConvertFrom-Json
-Write-Host "config: $config"
+try {
+    $config = Get-Content $CONFIG_FILE | ConvertFrom-Json
+    Write-Host "config: $config"
+}
+catch {
+    Write-Host "config.json does not exist or could not parse the JSON"
+    exit 1
+}
 
 # Extract values from the JSON object
 $deviceid = $config.deviceid
@@ -227,7 +234,7 @@ if ($uf2Files.Count -gt 0) {
     $UF2_FILE = $uf2Files[0].FullName
 }
 
-if (Test-Path $UF2_FILE) {
+if ($UF2_FILE) {
     # Detect the COM port for RP2040
     $deviceDescription = "USB Serial Device"
 
@@ -301,7 +308,7 @@ else {
 # Updating config message and restarting services
 Write-Output "Updating config"
 Set-Location -Path $DEST_DIR
-Restart-Service IrrigationController
+.\irrigation_controller.exe version
 
 # Send Response with OTA status
 $deviceid = $config.deviceid
